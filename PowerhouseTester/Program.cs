@@ -16,6 +16,10 @@ namespace PowerhouseTester
             BotSpreadsheetWrapper wrapper = 
                 new BotSpreadsheetWrapper("Powerhouse-50015918ccdf.json", "14ZJpxhMWP9kmMBmaz-NNdHyZmAtG49qKvrlJMcnfkV0", "A2:G");
 
+            string foundVal = wrapper.QueryGuid("value3im2lok").Result;
+
+            Console.Read();
+
             string input = String.Empty; do
             {
                 string cmd;
@@ -52,7 +56,7 @@ namespace PowerhouseTester
                         goto case "finalLabel";
                     case "finalLabel":
 
-                        
+                        // Process the arguments
 
                         break;
                     default: // Regular text

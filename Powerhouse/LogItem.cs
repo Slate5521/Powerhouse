@@ -12,18 +12,18 @@ namespace Powerhouse
         public long TimeEnd;
         public string Reason;
         public ActionTaken Action;
+        public string Guid;
 
         public bool Timed
         {
             get => TimeEnd > 0;
         }
         internal string GetTimestamp() => DateTimeOffset.FromUnixTimeMilliseconds(Ticks).ToString();
-
         internal List<object> ToValueRange(LogItem logItem)
         {
             return new List<object>
                 {
-                    Guid.NewGuid().ToString("N"),
+                    Guid,
                     logItem.GetTimestamp(),
                     '"' + logItem.OffenderId.ToString() + '"',
                     logItem.Action.ToString(),
