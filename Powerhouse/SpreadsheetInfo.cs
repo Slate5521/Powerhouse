@@ -8,18 +8,20 @@ using Google.Apis.Services;
 using Google.Apis.Util.Store;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Powerhouse
 {
-    public class SpreadsheetInfo
+    internal class SpreadsheetInfo
     {
         internal SheetsService SheetsService;
         private const string ApplicationName = "Project Powerhouse";
         static string[] Scopes = { SheetsService.Scope.Spreadsheets };
         internal string SpreadsheetId;
+        internal string Range;
 
-        SpreadsheetInfo() { }
-        public SpreadsheetInfo(GoogleCredential userCredential, string spreadsheetId, string range)
+        internal SpreadsheetInfo() { }
+        internal SpreadsheetInfo(GoogleCredential userCredential, string spreadsheetId, string range)
         {
             SheetsService = new SheetsService(new BaseClientService.Initializer()
             {
@@ -28,9 +30,10 @@ namespace Powerhouse
             });
 
             SpreadsheetId = spreadsheetId;
+            Range = range;
         }
 
-        public SpreadsheetInfo(string file, string spreadsheetId, string range)
+        internal SpreadsheetInfo(string file, string spreadsheetId, string range)
             : this(userCredential: GetUserCredentials(file),
                    spreadsheetId: spreadsheetId,
                    range: range) { }
@@ -46,6 +49,20 @@ namespace Powerhouse
             }
 
             return userCredential;
+        }
+
+        internal async Task<bool> AppendEntryAsync(LogItem logItem, string range)
+        {
+            var valueRange = new ValueRange();
+
+            valueRange.Values = new List<IList<object>>() { logItem.ToValueRange(logItem) };
+
+            var appendRequest = SheetsService.Spreadsheets.Values.Append(valueRange, SpreadsheetId, range);
+            appendRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.AppendRequest.ValueInputOptionEnum.USERENTERED;
+
+            var appendResponse = await appendRequest.ExecuteAsync();
+
+            return appendResponse.Updates.UpdatedCells.HasValue && appendResponse.Updates.UpdatedCells.Value > 0;
         }
     }
 }

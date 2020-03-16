@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Powerhouse;
 
@@ -6,30 +8,58 @@ namespace PowerhouseTester
 {
     class Program
     {
+        static Regex DateRegex
+            = new Regex(@"(\d+)\s?(months?|days?|weeks?|wks?|hours?|hrs?|minutes?|mins?)",
+                RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.Singleline);
         static void Main()
         {
-            SpreadsheetInfo spreadsheetInfo = new SpreadsheetInfo(@"Powerhouse-50015918ccdf.json", @"14ZJpxhMWP9kmMBmaz-NNdHyZmAtG49qKvrlJMcnfkV0", "A2:E");
+            BotSpreadsheetWrapper wrapper = 
+                new BotSpreadsheetWrapper("Powerhouse-50015918ccdf.json", "14ZJpxhMWP9kmMBmaz-NNdHyZmAtG49qKvrlJMcnfkV0", "A2:G");
 
-            LogItem li = new LogItem()
+            string input = String.Empty; do
             {
-                OffenderId = 159397733151670272,
-                StaffmemberId = 131626628211146752,
-                Action = ActionTaken.Warn,
-                Reason = "DUMB\nDUMB2",
-                Timed = false,
-                TimeEnd = 0,
-                Ticks = DateTimeOffset.Now.ToUnixTimeMilliseconds()
-            };
+                string cmd;
 
-            bool meh = Task.Run(() => spreadsheetInfo.CreateEntryAsync(li, @"A2:G")).Result;
+                if (input.Length > "warn".Length && input.Substring(0, 4).Equals("warn"))
+                    cmd = "warn";
+                else if (input.Length > "mute".Length && input.Substring(0, 4).Equals("mute"))
+                    cmd = "mute";
+                else if (input.Length > "kick".Length && input.Substring(0, 4).Equals("kick"))
+                    cmd = "kick";
+                else if (input.Length > "ban".Length && input.Substring(0, 3).Equals("ban"))
+                    cmd = "ban";
+                else cmd = String.Empty;
 
+                ActionTaken action;
 
-            /*string input = String.Empty; do
-            {
-                Console.WriteLine("Text String Input:");
-                input = Console.ReadLine();
+                switch(cmd)
+                {
+                    case "warn":
+                        action = ActionTaken.Warn;
 
-            } while (input.Length > 0);*/
+                        goto case "finalLabel";
+                    case "mute":
+                        action = ActionTaken.Mute;
+
+                        goto case "finalLabel";
+                    case "kick":
+                        action = ActionTaken.Kick;
+
+                        goto case "finalLabel";
+                    case "ban":
+                        action = ActionTaken.Ban;
+
+                        goto case "finalLabel";
+                    case "finalLabel":
+
+                        
+
+                        break;
+                    default: // Regular text
+                        break;
+                }
+
+            } while (input.Length > 0);
         }
     }
 }
