@@ -9,7 +9,7 @@ namespace Powerhouse
         private const string GUID_PREFIX = "RW";
         
         /// <summary>When the log item occurred.</summary>
-        public readonly long Ticks;
+        public readonly long Seconds;
         /// <summary>Guid of the log item.</summary>
         public readonly string Guid;
         public ulong OffenderId;
@@ -24,16 +24,19 @@ namespace Powerhouse
             get => Duration > 0;
         }
 
-        public LogItem(long ticks, ulong offenderId, ulong staffmemberId, ActionTaken action, long duration = 0, string reason = "")
+        public LogItem(long seconds, ulong offenderId, ulong staffmemberId, ActionTaken action, long duration = 0, string reason = "", string guid = "")
         {
-            Ticks = ticks;
+            Seconds = seconds;
             OffenderId = offenderId;
             StaffmemberId = staffmemberId;
             Action = action;
             Duration = duration;
             Reason = reason;
 
-            Guid = GUID_PREFIX + System.Guid.NewGuid().ToString("N");
+            if (guid.Length == 0)
+                Guid = GUID_PREFIX + System.Guid.NewGuid().ToString("N");
+            else
+                Guid = guid;
         }
 
         internal static LogItem GenerateLogItemFromIList(IList<object> values)
@@ -43,26 +46,26 @@ namespace Powerhouse
             // Set to true if there has been an error in the parsing process.
             bool err = false;
 
-            long ticks; // Ticks (ms) the warning was logged at
+            long seconds; // Seconds the warning was logged at
             string guid; // Guid of the warning
             string reason; // Reason of the warning
 
-            // Try to parse the guid.
-            if (values[SpreadsheetInfo.CTZBI(SpreadsheetInfo.GuidColumn)].ToString().Length > 0)
-                guid = values[SpreadsheetInfo.CTZBI(SpreadsheetInfo.GuidColumn)].ToString();
-            else
-            {
-                err = true;
-                guid = default;
-            }
+                // Try to parse the guid.
+                if (values[SpreadsheetInfo.CTZBI(SpreadsheetInfo.GuidColumn)].ToString().Length > 0)
+                    guid = values[SpreadsheetInfo.CTZBI(SpreadsheetInfo.GuidColumn)].ToString();
+                else
+                {
+                    err = true;
+                    guid = default;
+                }
 
             // Try to parse the date.
             if (!err && DateTimeOffset.TryParse(values[SpreadsheetInfo.CTZBI(SpreadsheetInfo.TimestampColumn)].ToString(), out DateTimeOffset dto))
-                ticks = dto.ToUnixTimeMilliseconds();
+                seconds = dto.ToUnixTimeSeconds();
             else
             {
                 err = true;
-                ticks = default;
+                seconds = default;
             }
 
             // Try to parse the offender's ID.
@@ -110,19 +113,33 @@ namespace Powerhouse
             if (!err)
             {
                 logItem = new LogItem(
-                    ticks: ticks,
+                    seconds: seconds,
                     offenderId: offenderId,
                     staffmemberId: staffmemberId,
                     action: action,
                     duration: duration,
-                    reason: reason);
+                    reason: reason,
+                    guid: guid);
             }
             else logItem = default; // err was true.
             
             return logItem;
         }
 
-        public string GetTimestamp() => DateTimeOffset.FromUnixTimeMilliseconds(Ticks).ToString();
+        /// <summary>Gets the remaining time before the action expires.</summary>
+        /// <param name="currTime">Current time in milliseconds.</param>
+        /// <returns>The remaining time in milliseconds, -1 if this action is not timed.</returns>
+        public long RemainingTicks(long currTime)
+        {
+            long returnVal;
+            if (Timed)
+                returnVal = Math.Max(Seconds + Duration - currTime, 0);
+            else returnVal = -1;
+
+            return returnVal;
+        }
+
+        public string GetTimestamp() => DateTimeOffset.FromUnixTimeSeconds(Seconds).ToString();
         internal List<object> ToValueRange(LogItem logItem)
         {
             return new List<object>
@@ -132,10 +149,35 @@ namespace Powerhouse
                     '`' + logItem.OffenderId.ToString(),
                     logItem.Action.ToString(),
                     '`' + logItem.StaffmemberId.ToString(),
-                    logItem.Timed ? ('`' + logItem.Duration.ToString()) : "`n/a",
+                    logItem.Timed ? ('`' + logItem.Duration.ToString()) : "`-1",
                     logItem.Reason,
                 };
 
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is LogItem item &&
+                   Seconds == item.Seconds &&
+                   Guid == item.Guid &&
+                   OffenderId == item.OffenderId &&
+                   StaffmemberId == item.StaffmemberId &&
+                   Duration == item.Duration &&
+                   Reason == item.Reason &&
+                   Action == item.Action;
+        }
+
+        public override int GetHashCode()
+        {
+            var hashCode = -908413599;
+            hashCode = hashCode * -1521134295 + Seconds.GetHashCode();
+            hashCode = hashCode * -1521134295 + EqualityComparer<string>.Default.GetHashCode(Guid);
+            hashCode = hashCode * -1521134295 + OffenderId.GetHashCode();
+            hashCode = hashCode * -1521134295 + StaffmemberId.GetHashCode();
+            hashCode = hashCode * -1521134295 + Duration.GetHashCode();
+            hashCode = hashCode * -1521134295 + EqualityComparer<string>.Default.GetHashCode(Reason);
+            hashCode = hashCode * -1521134295 + Action.GetHashCode();
+            return hashCode;
         }
     }
 }

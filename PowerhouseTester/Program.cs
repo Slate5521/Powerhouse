@@ -17,9 +17,11 @@ namespace PowerhouseTester
                 new BotSpreadsheetWrapper("Powerhouse-50015918ccdf.json", "14ZJpxhMWP9kmMBmaz-NNdHyZmAtG49qKvrlJMcnfkV0", "A2:G");
 
             //bool successfulAdd = wrapper.AddWarn(DateTimeOffset.UtcNow, 146669176738676736, 131626628211146752, "idiot").Result;
+            bool successfulUpdate = wrapper.UpdateEntry("RW4af7c8031c7e490eaf97e44a5540a9a9", 1337, "dogshit").Result;
             //Cell foundVal = wrapper.QueryGuid("value3im2lok").Result;
 
-            LogItem[] whatever = wrapper.QueryLogItemByOffenderId(1146669176738676736).Result;
+            //LogItem[] whatever = wrapper.QueryPendingActions().Result;
+            //bool whatever = wrapper.DeleteEntry("RW2dbd9c676497418f870390329d05e211").Result;
             Console.Read();
 
             string input = String.Empty; do

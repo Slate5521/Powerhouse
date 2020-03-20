@@ -10,6 +10,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Linq;
+using static Google.Apis.Sheets.v4.SpreadsheetsResource;
 
 namespace Powerhouse
 {
@@ -96,6 +97,8 @@ namespace Powerhouse
 
             return index;
         }
+
+
         /// <summary>Wrapper for ColumnToZeroBasedIndex.</summary>
         internal static int CTZBI(char c) => ColumnToZeroBasedIndex(c);
 
@@ -131,13 +134,37 @@ namespace Powerhouse
             if (appendResponse.Updates.UpdatedCells.HasValue && appendResponse.Updates.UpdatedCells.Value > 0)
             {
                 // Second half of the check is physically investigating the cell to see if our Guid is there.
-                success = await ConfirmDataPlacement(appendResponse.Updates.UpdatedRange, logItem.Guid);
+                success = await ConfirmDataPlacement(appendResponse.Updates.UpdatedRange, logItem);
             } else success = false;
 
             return success;
         }
 
-        private async Task<bool> ConfirmDataPlacement(string range, string guid)
+        private async Task<bool> EditEntryAsync(string range, LogItem logItem)
+        {
+            var valueRange = new ValueRange(); // Value range returned by the API.
+            bool success; // Was data placement successful?
+
+            // Set the the values we want to set.
+            valueRange.Values = new List<IList<object>>() { logItem.ToValueRange(logItem) };
+
+            var updateRequest = SheetsService.Spreadsheets.Values.Update(valueRange, SpreadsheetId, range);
+            updateRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.UpdateRequest.ValueInputOptionEnum.USERENTERED;
+
+            var appendResponse = await updateRequest.ExecuteAsync();
+
+            // First half of the check is checking if cells were even updated.
+            if (appendResponse.UpdatedCells.HasValue && appendResponse.UpdatedCells.Value > 0)
+            {
+                // Second half of the check is physically investigating the cell to see if our Guid is there.
+                success = await ConfirmDataPlacement(appendResponse.UpdatedRange, logItem);
+            }
+            else success = false;
+
+            return success;
+        }
+
+        private async Task<bool> ConfirmDataPlacement(string range, LogItem logItem)
         {
             // Check if the data is there.
             bool confirmedPlaced;
@@ -151,11 +178,11 @@ namespace Powerhouse
             {
                 if (valueRange.Values[0].Count > 0)
                 {
-                    confirmedPlaced = valueRange.Values[0][0].Equals(guid);
-                }
-                else confirmedPlaced = false;
-            }
-            else confirmedPlaced = false;
+                    LogItem logItemReceived = LogItem.GenerateLogItemFromIList(valueRange.Values[0]);
+
+                    confirmedPlaced = logItem.Equals(logItemReceived);
+                } else confirmedPlaced = false;
+            } else confirmedPlaced = false;
 
             return confirmedPlaced;
         }
@@ -233,6 +260,85 @@ namespace Powerhouse
             } else logItem = default; // out of range, some kind of error happened
 
             return logItem;
+        }
+
+        internal async Task<bool> DeleteRow(string guid)
+        {
+            bool success;
+            Cell deleteCell = await QueryGuidExists(guid);
+
+            if (!deleteCell.Equals(Cell.InvalidCell))
+            {
+                Request requestBody = new Request()
+                {
+                    DeleteDimension = new DeleteDimensionRequest()
+                    {
+                        Range = new DimensionRange()
+                        {
+                            SheetId = 0,
+                            Dimension = "ROWS",
+                            StartIndex = deleteCell.Row -1,
+                            EndIndex = deleteCell.Row
+                        }
+                    }
+                };
+
+                List<Request> requestContainer = new List<Request>();
+                requestContainer.Add(requestBody);
+
+                BatchUpdateSpreadsheetRequest deleteRequest = new BatchUpdateSpreadsheetRequest();
+                deleteRequest.Requests = requestContainer;
+
+                BatchUpdateRequest deletion = new BatchUpdateRequest(SheetsService, deleteRequest, SpreadsheetId);
+                await deletion.ExecuteAsync();
+
+                success = true;
+            } else success = false;
+
+            return success;
+        }
+
+        internal async Task<bool> UpdateEntry(string guid, long? tickDuration, string reason)
+        {
+            bool success;
+
+            Cell alterCell = await QueryGuidExists(guid);
+            
+            if (!alterCell.Equals(Cell.InvalidCell))
+            {
+                LogItem oldItem;
+                string range = String.Format("{0}{1}:{2}{1}",
+                                /*0*/ alterCell.Column,
+                                /*1*/ alterCell.Row,
+                                /*2*/ ReasonColumn);
+
+                ValueRange valueRange = await QueryRange(range);
+
+                if (valueRange.Values.Count > 0)
+                {
+                    oldItem = LogItem.GenerateLogItemFromIList(valueRange.Values[0]);
+
+                    if (!oldItem.Equals(default))
+                    {
+                        LogItem newItem = new LogItem(
+                            seconds: oldItem.Seconds,
+                            offenderId: oldItem.OffenderId,
+                            staffmemberId: oldItem.StaffmemberId,
+                            action: oldItem.Action,
+                            duration:
+                                tickDuration.HasValue ? tickDuration.Value : oldItem.Duration,
+                            reason:
+                                reason.Equals(String.Empty) ? oldItem.Reason : reason);
+
+                        bool editSuccess = await EditEntryAsync(range, newItem);
+                        bool placedSuccess = await ConfirmDataPlacement(range, newItem);
+
+                        success = editSuccess && placedSuccess;
+                    } else success = false;
+                } else success = false;
+            } else success = false;
+
+            return success;
         }
     }
 }
